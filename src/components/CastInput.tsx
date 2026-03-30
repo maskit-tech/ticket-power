@@ -14,6 +14,7 @@ export interface CastMember {
   subscriberCount: number;
   fandomScore: number;
   buzzTotal?: number;
+  buzzRecent?: number;
   channelTitle?: string;
   thumbnailUrl?: string;
   grade?: string;
@@ -31,6 +32,7 @@ interface SearchCandidate {
   subscriberCount: number;
   fandomScore: number;
   buzzTotal?: number;
+  buzzRecent?: number;
   grade: string;
   gradeLabel: string;
   gradeColor: string;
@@ -76,6 +78,7 @@ export default function CastInput({ cast, onChange }: Props) {
       subscriberCount: c.subscriberCount,
       fandomScore: c.fandomScore,
       buzzTotal: c.buzzTotal,
+      buzzRecent: c.buzzRecent,
       channelTitle: c.title,
       thumbnailUrl: c.thumbnailUrl,
       grade: c.grade,
@@ -166,11 +169,9 @@ export default function CastInput({ cast, onChange }: Props) {
                     <span className="text-xs text-gray-600">
                       {formatSubscribers(m.subscriberCount)}
                     </span>
-                    {m.buzzTotal != null && m.buzzTotal > 0 && (
+                    {m.buzzRecent != null && m.buzzRecent > 0 && (
                       <span className="text-xs text-blue-400">
-                        뉴스 {m.buzzTotal >= 10000
-                          ? `${(m.buzzTotal / 10000).toFixed(0)}만`
-                          : m.buzzTotal.toLocaleString()}건
+                        최근 {m.buzzRecent}건
                       </span>
                     )}
                     <Badge variant="secondary" className="text-xs">
@@ -279,7 +280,8 @@ export default function CastInput({ cast, onChange }: Props) {
                         </span>
                         {c.buzzTotal != null && c.buzzTotal > 0 && (
                           <span className="text-xs text-blue-400">
-                            뉴스 {c.buzzTotal.toLocaleString()}건
+                            최근 {c.buzzRecent ?? 0}건
+                            <span className="text-gray-300"> / 전체 {c.buzzTotal.toLocaleString()}</span>
                           </span>
                         )}
                       </div>

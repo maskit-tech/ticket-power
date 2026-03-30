@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
         ytScore,
         buzzScore: buzz.buzzScore,
         buzzTotal: buzz.total,
+        buzzRecent: buzz.recentCount,
         grade: grade.grade,
         gradeLabel: grade.label,
         gradeColor: grade.color,
