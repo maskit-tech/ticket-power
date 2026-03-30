@@ -109,8 +109,20 @@ export default function Home() {
   useEffect(() => {
     const hasCastLoading = cast.some((m) => m.loading);
     if (hasCastLoading) return;
+
+    // 의미있는 입력이 있을 때만 예측 실행
+    const hasInput =
+      form.title.trim() !== "" ||  // 공연명 입력
+      theater !== null ||            // 공연장 선택
+      cast.length > 0;              // 캐스트 추가
+
+    if (!hasInput) {
+      setResult(null);
+      return;
+    }
+
     predict(form, cast);
-  }, [form, cast, predict]);
+  }, [form, cast, predict, theater]);
 
   function saveScenario() {
     if (!result) return;
@@ -328,13 +340,11 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 {result ? (
-                  <PredictionResult
-                    result={result}
-                    priceAvg={parseInt(form.priceAvg) || 0}
-                  />
+                  <PredictionResult result={result} />
                 ) : (
-                  <div className="flex h-40 items-center justify-center text-gray-400 text-sm">
-                    공연 조건을 입력하면 자동으로 예측됩니다
+                  <div className="flex h-40 flex-col items-center justify-center gap-2 text-gray-400">
+                    <p className="text-sm">공연명, 공연장, 또는 캐스트를</p>
+                    <p className="text-sm">입력하면 예측이 시작됩니다</p>
                   </div>
                 )}
               </CardContent>
