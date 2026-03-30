@@ -22,6 +22,7 @@ import { aggregateFandomScore } from "@/lib/youtube";
 import { BarChart3, RefreshCw } from "lucide-react";
 
 interface ShowForm {
+  title: string;
   seatcnt: string;
   periodDays: string;
   weeklyShows: string;
@@ -34,6 +35,7 @@ interface ShowForm {
 }
 
 const DEFAULT_FORM: ShowForm = {
+  title: "",
   seatcnt: "1000",
   periodDays: "60",
   weeklyShows: "8",
@@ -64,6 +66,7 @@ export default function Home() {
   const predict = useCallback(async (f: ShowForm, c: CastMember[]) => {
     const completedCast = c.filter((m) => !m.loading);
     const fandomScores = completedCast.map((m) => m.fandomScore);
+    const hasCast = completedCast.length > 0;
     const castFandomScore =
       fandomScores.length > 0 ? aggregateFandomScore(fandomScores) : undefined;
 
@@ -83,6 +86,7 @@ export default function Home() {
           isImported: f.isImported,
           isTour: f.isTour,
           castFandomScore,
+          hasCast,
         }),
       });
       const data = await res.json();
@@ -111,7 +115,7 @@ export default function Home() {
   function saveScenario() {
     if (!result) return;
     const label =
-      `시나리오 ${scenarios.length + 1}` +
+      (form.title.trim() || `시나리오 ${scenarios.length + 1}`) +
       (cast.length > 0 ? ` (${cast.map((c) => c.name).join(", ")})` : "");
     setScenarios((prev) => [
       ...prev,
@@ -154,6 +158,17 @@ export default function Home() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* 공연명 */}
+                <div>
+                  <Label className="text-xs text-gray-500">공연명 (선택)</Label>
+                  <Input
+                    placeholder="예: 베토벤 피아노 협주곡 5번"
+                    value={form.title}
+                    onChange={(e) => updateForm("title", e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+
                 {/* 극장 선택 */}
                 <div>
                   <Label className="text-xs text-gray-500">공연장</Label>

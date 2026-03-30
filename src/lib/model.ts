@@ -18,6 +18,7 @@ export interface ShowInput {
   isImported: boolean;
   isTour: boolean;
   castFandomScore?: number; // 배우 팬덤 합산 스코어 (0~1 정규화)
+  hasCast?: boolean;        // 캐스트 입력 여부
 }
 
 export interface PredictionResult {
@@ -27,6 +28,8 @@ export interface PredictionResult {
   totalShows: number;
   audience: { min: number; expected: number; max: number };
   revenue: { min: number; expected: number; max: number };
+  confidence: "low" | "mid" | "high"; // 예측 신뢰도
+  hasCast: boolean;
 }
 
 function dotProduct(a: number[], b: number[]): number {
@@ -83,15 +86,23 @@ export function predict(input: ShowInput): PredictionResult {
   const vec = buildFeatureVector(input);
   let rawScore = dotProduct(vec, weights);
 
-  // 팬덤 스코어 보정: S급 기준 ±64점 (rawP70 168점 범위의 ~40%)
-  if (input.castFandomScore !== undefined) {
-    const fandomBoost = (input.castFandomScore - 0.5) * 150;
-    rawScore += fandomBoost;
-  }
+  // 팬덤 스코어 보정
+  // 캐스트 없으면 0.3(보수적 기본값)으로 -30점 패널티 적용
+  // 캐스트 있으면 실제 스코어로 ±64점 범위 보정
+  const effectiveFandom = input.castFandomScore ?? 0.3;
+  const fandomBoost = (effectiveFandom - 0.5) * 150;
+  rawScore += fandomBoost;
 
+  const hasCast = input.hasCast ?? false;
   const tier: Tier =
     rawScore >= rawP70 ? "HIGH" : rawScore <= rawP30 ? "LOW" : "MID";
   const occ = occupancyByTier[tier];
+
+  // 신뢰도: 캐스트 없으면 low, 캐스트만 있으면 mid, 캐스트+YouTube면 high
+  const confidence: PredictionResult["confidence"] =
+    !hasCast ? "low"
+    : input.castFandomScore !== undefined ? "high"
+    : "mid";
 
   const expected = Math.round(capacity * occ);
   const min = Math.round(expected * 0.75);
@@ -108,5 +119,7 @@ export function predict(input: ShowInput): PredictionResult {
       expected: expected * input.priceAvg,
       max: max * input.priceAvg,
     },
+    confidence,
+    hasCast,
   };
 }

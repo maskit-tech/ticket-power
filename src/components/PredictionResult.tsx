@@ -1,7 +1,7 @@
 "use client";
 
 import { PredictionResult as Result, Tier } from "@/lib/model";
-import { Badge } from "@/components/ui/badge";
+import { AlertTriangle, Info } from "lucide-react";
 
 interface Props {
   result: Result;
@@ -14,6 +14,12 @@ const TIER_CONFIG: Record<Tier, { label: string; color: string; bg: string }> = 
   LOW: { label: "LOW — 흥행 어려움", color: "text-blue-600", bg: "bg-blue-50 border-blue-200" },
 };
 
+const CONFIDENCE_CONFIG = {
+  low:  { label: "낮음", bar: "w-1/3",  color: "bg-red-300",    text: "text-red-600" },
+  mid:  { label: "중간", bar: "w-2/3",  color: "bg-yellow-300", text: "text-yellow-600" },
+  high: { label: "높음", bar: "w-full", color: "bg-green-400",  text: "text-green-600" },
+};
+
 function fmt(n: number) {
   return n.toLocaleString("ko-KR");
 }
@@ -23,6 +29,7 @@ function fmtBillion(n: number) {
 
 export default function PredictionResult({ result }: Props) {
   const tier = TIER_CONFIG[result.tier];
+  const conf = CONFIDENCE_CONFIG[result.confidence];
 
   return (
     <div className={`rounded-xl border-2 p-5 space-y-4 ${tier.bg}`}>
@@ -39,6 +46,31 @@ export default function PredictionResult({ result }: Props) {
           </p>
         </div>
       </div>
+
+      {/* 신뢰도 */}
+      <div className="rounded-lg bg-white/70 p-3 space-y-1.5">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-gray-500 flex items-center gap-1">
+            <Info className="h-3 w-3" />
+            예측 신뢰도
+          </span>
+          <span className={`font-semibold ${conf.text}`}>{conf.label}</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+          <div className={`h-full rounded-full ${conf.bar} ${conf.color} transition-all`} />
+        </div>
+      </div>
+
+      {/* 캐스트 미입력 경고 */}
+      {!result.hasCast && (
+        <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-700">
+          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <span>
+            캐스트 미입력 — 공연장·기간·규모 기준 추정값입니다.
+            배우를 추가하면 팬덤 영향이 반영되어 신뢰도가 높아집니다.
+          </span>
+        </div>
+      )}
 
       {/* Capacity */}
       <div className="rounded-lg bg-white/70 p-3 text-sm">
