@@ -35,7 +35,7 @@ function dotProduct(a: number[], b: number[]): number {
 
 function buildFeatureVector(input: ShowInput): number[] {
   const capacity =
-    input.seatcnt * Math.round((input.periodDays / 7) * input.weeklyShows);
+    input.seatcnt * Math.max(1, Math.round((input.periodDays / 7) * input.weeklyShows));
   const importedBonus = input.isImported ? 0.4 : 0;
   const tourPenalty = input.isTour ? -0.1 : 0;
   const f_cap_adj = input.isImported
@@ -77,8 +77,8 @@ export function predict(input: ShowInput): PredictionResult {
   const { rawP70, rawP30 } = getThresholds();
 
   const capacity =
-    input.seatcnt * Math.round((input.periodDays / 7) * input.weeklyShows);
-  const totalShows = Math.round((input.periodDays / 7) * input.weeklyShows);
+    input.seatcnt * Math.max(1, Math.round((input.periodDays / 7) * input.weeklyShows));
+  const totalShows = Math.max(1, Math.round((input.periodDays / 7) * input.weeklyShows));
 
   const vec = buildFeatureVector(input);
   let rawScore = dotProduct(vec, weights);

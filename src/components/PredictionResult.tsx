@@ -45,7 +45,9 @@ export default function PredictionResult({ result }: Props) {
         <p className="text-gray-500 mb-1">총 공연 규모</p>
         <p className="font-medium">
           {fmt(result.totalShows)}회차 ×{" "}
-          {fmt(Math.round(result.capacity / result.totalShows))}석 ={" "}
+          {result.totalShows > 0
+            ? fmt(Math.round(result.capacity / result.totalShows))
+            : "—"}석 ={" "}
           <span className="text-gray-800 font-bold">{fmt(result.capacity)}명 capacity</span>
         </p>
       </div>
