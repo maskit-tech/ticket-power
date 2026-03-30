@@ -15,7 +15,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import CastInput, { CastMember } from "@/components/CastInput";
 import PredictionResult from "@/components/PredictionResult";
+import TheaterSelect from "@/components/TheaterSelect";
 import { PredictionResult as Result } from "@/lib/model";
+import { Theater } from "@/lib/theaters";
 import { aggregateFandomScore } from "@/lib/youtube";
 import { BarChart3, RefreshCw } from "lucide-react";
 
@@ -54,6 +56,7 @@ interface Scenario {
 export default function Home() {
   const [form, setForm] = useState<ShowForm>(DEFAULT_FORM);
   const [cast, setCast] = useState<CastMember[]>([]);
+  const [theater, setTheater] = useState<Theater | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [loading, setLoading] = useState(false);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -88,6 +91,16 @@ export default function Home() {
       setLoading(false);
     }
   }, []);
+
+  // 극장 선택 시 좌석수·등급 자동 반영
+  useEffect(() => {
+    if (!theater) return;
+    setForm((prev) => ({
+      ...prev,
+      seatcnt: String(theater.seatcnt),
+      venueTier: String(theater.venueTier) as "0" | "1" | "2",
+    }));
+  }, [theater]);
 
   useEffect(() => {
     const hasCastLoading = cast.some((m) => m.loading);
@@ -141,6 +154,14 @@ export default function Home() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* 극장 선택 */}
+                <div>
+                  <Label className="text-xs text-gray-500">공연장</Label>
+                  <div className="mt-1">
+                    <TheaterSelect selected={theater} onSelect={setTheater} />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <Label className="text-xs text-gray-500">좌석수</Label>
