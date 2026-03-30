@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { subscriberToFandomScore } from "@/lib/youtube";
 import { getActorGrade } from "@/lib/theaters";
+import { getNewsBuzz, combineFandomScore } from "@/lib/naver";
 
 const YT_API_KEY = process.env.YOUTUBE_API_KEY;
 
@@ -14,16 +15,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "YouTube API 키 없음" }, { status: 500 });
     }
 
-    // 1. 채널 검색 (100 유닛)
+    // 1. YouTube 채널 검색 + 뉴스 버즈 병렬 조회
     const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(name + " 뮤지컬")}&type=channel&maxResults=4&key=${YT_API_KEY}`;
-    const searchRes = await fetch(searchUrl);
+    const [searchRes, buzz] = await Promise.all([
+      fetch(searchUrl),
+      getNewsBuzz(name),
+    ]);
     const searchData = await searchRes.json();
 
     if (!searchData.items?.length) {
-      return NextResponse.json({ candidates: [] });
+      return NextResponse.json({ candidates: [], buzz });
     }
 
-    // 2. 채널 상세 조회 (1 유닛 × N)
+    // 2. 채널 상세 조회
     const channelIds = searchData.items.map((item: any) => item.id.channelId).join(",");
     const detailUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelIds}&key=${YT_API_KEY}`;
     const detailRes = await fetch(detailUrl);
@@ -31,7 +35,8 @@ export async function POST(req: NextRequest) {
 
     const candidates = (detailData.items ?? []).map((item: any) => {
       const subscribers = parseInt(item.statistics?.subscriberCount ?? "0");
-      const fandomScore = subscriberToFandomScore(subscribers);
+      const ytScore = subscriberToFandomScore(subscribers);
+      const fandomScore = combineFandomScore(ytScore, buzz.buzzScore);
       const grade = getActorGrade(subscribers);
       return {
         channelId: item.id,
@@ -40,6 +45,9 @@ export async function POST(req: NextRequest) {
         thumbnailUrl: item.snippet.thumbnails?.default?.url ?? "",
         subscriberCount: subscribers,
         fandomScore,
+        ytScore,
+        buzzScore: buzz.buzzScore,
+        buzzTotal: buzz.total,
         grade: grade.grade,
         gradeLabel: grade.label,
         gradeColor: grade.color,
@@ -47,7 +55,7 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({ candidates });
+    return NextResponse.json({ candidates, buzz });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

@@ -13,6 +13,7 @@ export interface CastMember {
   youtubeUrl: string;
   subscriberCount: number;
   fandomScore: number;
+  buzzTotal?: number;
   channelTitle?: string;
   thumbnailUrl?: string;
   grade?: string;
@@ -29,6 +30,7 @@ interface SearchCandidate {
   thumbnailUrl: string;
   subscriberCount: number;
   fandomScore: number;
+  buzzTotal?: number;
   grade: string;
   gradeLabel: string;
   gradeColor: string;
@@ -73,6 +75,7 @@ export default function CastInput({ cast, onChange }: Props) {
       youtubeUrl: c.youtubeUrl,
       subscriberCount: c.subscriberCount,
       fandomScore: c.fandomScore,
+      buzzTotal: c.buzzTotal,
       channelTitle: c.title,
       thumbnailUrl: c.thumbnailUrl,
       grade: c.grade,
@@ -163,6 +166,13 @@ export default function CastInput({ cast, onChange }: Props) {
                     <span className="text-xs text-gray-600">
                       {formatSubscribers(m.subscriberCount)}
                     </span>
+                    {m.buzzTotal != null && m.buzzTotal > 0 && (
+                      <span className="text-xs text-blue-400">
+                        뉴스 {m.buzzTotal >= 10000
+                          ? `${(m.buzzTotal / 10000).toFixed(0)}만`
+                          : m.buzzTotal.toLocaleString()}건
+                      </span>
+                    )}
                     <Badge variant="secondary" className="text-xs">
                       팬덤 {(m.fandomScore * 100).toFixed(0)}
                     </Badge>
@@ -267,9 +277,9 @@ export default function CastInput({ cast, onChange }: Props) {
                         <span className="text-xs text-gray-400">
                           구독자 {formatSubscribers(c.subscriberCount)}
                         </span>
-                        {c.description && (
-                          <span className="text-xs text-gray-300 truncate">
-                            {c.description}
+                        {c.buzzTotal != null && c.buzzTotal > 0 && (
+                          <span className="text-xs text-blue-400">
+                            뉴스 {c.buzzTotal.toLocaleString()}건
                           </span>
                         )}
                       </div>
