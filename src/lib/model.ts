@@ -83,9 +83,9 @@ export function predict(input: ShowInput): PredictionResult {
   const vec = buildFeatureVector(input);
   let rawScore = dotProduct(vec, weights);
 
-  // 팬덤 스코어 보정: 최대 ±30점 (rawP70 기준)
+  // 팬덤 스코어 보정: S급 기준 ±64점 (rawP70 168점 범위의 ~40%)
   if (input.castFandomScore !== undefined) {
-    const fandomBoost = (input.castFandomScore - 0.5) * 60;
+    const fandomBoost = (input.castFandomScore - 0.5) * 150;
     rawScore += fandomBoost;
   }
 

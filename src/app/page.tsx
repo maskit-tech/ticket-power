@@ -271,7 +271,7 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="overflow-visible">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-gray-700">
                   캐스트
