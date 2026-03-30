@@ -4,8 +4,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, X, PlayCircle, User, Search } from "lucide-react";
+import { Loader2, Plus, X, PlayCircle, User, Search, AtSign } from "lucide-react";
 import { getActorGrade } from "@/lib/theaters";
+import { combinedFandomScore } from "@/lib/youtube";
 
 export interface CastMember {
   id: string;
@@ -22,6 +23,14 @@ export interface CastMember {
   gradeColor?: string;
   loading: boolean;
   error?: string;
+  // 소셜 계정
+  instagram?: string;
+  twitter?: string;
+  threads?: string;
+  instagramFollowers?: number | null;
+  twitterFollowers?: number | null;
+  threadsFollowers?: number | null;
+  socialLoading?: boolean;
 }
 
 interface SearchCandidate {
@@ -39,31 +48,122 @@ interface SearchCandidate {
   youtubeUrl: string;
 }
 
+interface BuzzSummary {
+  buzzRecent: number;
+  trendAvg: number;
+}
+
 interface Props {
   cast: CastMember[];
   onChange: (cast: CastMember[]) => void;
+  genre?: string;
 }
 
-export default function CastInput({ cast, onChange }: Props) {
+export default function CastInput({ cast, onChange, genre = "musical" }: Props) {
   const [nameInput, setNameInput] = useState("");
   const [searching, setSearching] = useState(false);
   const [candidates, setCandidates] = useState<SearchCandidate[]>([]);
+  const [buzzSummary, setBuzzSummary] = useState<BuzzSummary | null>(null);
   const [showCandidates, setShowCandidates] = useState(false);
+  const [expandedSocial, setExpandedSocial] = useState<Set<string>>(new Set());
+  const [socialInputs, setSocialInputs] = useState<Record<string, { ig: string; x: string; th: string }>>({});
+
+  function toggleSocial(id: string) {
+    setExpandedSocial((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    if (!socialInputs[id]) {
+      const member = cast.find((m) => m.id === id);
+      setSocialInputs((prev) => ({
+        ...prev,
+        [id]: {
+          ig: member?.instagram ?? "",
+          x: member?.twitter ?? "",
+          th: member?.threads ?? "",
+        },
+      }));
+    }
+  }
+
+  async function fetchSocialFollowers(memberId: string) {
+    const inputs = socialInputs[memberId];
+    if (!inputs) return;
+
+    // 로딩 상태
+    onChange(cast.map((m) => m.id === memberId ? { ...m, socialLoading: true } : m));
+
+    try {
+      const res = await fetch("/api/social-followers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          instagram: inputs.ig || undefined,
+          twitter: inputs.x || undefined,
+          threads: inputs.th || undefined,
+        }),
+      });
+      const data = await res.json();
+
+      onChange(cast.map((m) => {
+        if (m.id !== memberId) return m;
+        const igF = data.instagram?.followers ?? null;
+        const xF = data.twitter?.followers ?? null;
+        const thF = data.threads?.followers ?? null;
+        const newFandomScore = combinedFandomScore({
+          youtubeSubscribers: m.subscriberCount,
+          instagramFollowers: igF,
+          twitterFollowers: xF,
+          threadsFollowers: thF,
+          genre,
+        });
+        return {
+          ...m,
+          instagram: inputs.ig || undefined,
+          twitter: inputs.x || undefined,
+          threads: inputs.th || undefined,
+          instagramFollowers: igF,
+          twitterFollowers: xF,
+          threadsFollowers: thF,
+          fandomScore: newFandomScore,
+          socialLoading: false,
+        };
+      }));
+    } catch {
+      onChange(cast.map((m) => m.id === memberId ? { ...m, socialLoading: false } : m));
+    }
+  }
+
+  function updateSocialInput(id: string, platform: "ig" | "x" | "th", value: string) {
+    setSocialInputs((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] ?? { ig: "", x: "", th: "" }), [platform]: value },
+    }));
+  }
 
   // 이름으로 YouTube 채널 검색
   async function searchByName() {
     if (!nameInput.trim()) return;
     setSearching(true);
     setCandidates([]);
+    setBuzzSummary(null);
     setShowCandidates(true);
     try {
       const res = await fetch("/api/cast-search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nameInput.trim() }),
+        body: JSON.stringify({ name: nameInput.trim(), genre }),
       });
       const data = await res.json();
       setCandidates(data.candidates ?? []);
+      if (data.buzz || data.trend) {
+        setBuzzSummary({
+          buzzRecent: data.buzz?.recentCount ?? 0,
+          trendAvg: data.trend?.avg ?? 0,
+        });
+      }
     } finally {
       setSearching(false);
     }
@@ -131,10 +231,8 @@ export default function CastInput({ cast, onChange }: Props) {
               ? getActorGrade(m.subscriberCount)
               : null;
             return (
-              <div
-                key={m.id}
-                className="flex items-center gap-2 rounded-lg border bg-white p-2.5"
-              >
+              <div key={m.id} className="rounded-lg border bg-white">
+              <div className="flex items-center gap-2 p-2.5">
                 {m.thumbnailUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -169,11 +267,6 @@ export default function CastInput({ cast, onChange }: Props) {
                     <span className="text-xs text-gray-600">
                       {formatSubscribers(m.subscriberCount)}
                     </span>
-                    {m.buzzRecent != null && m.buzzRecent > 0 && (
-                      <span className="text-xs text-blue-400">
-                        최근 {m.buzzRecent}건
-                      </span>
-                    )}
                     <Badge variant="secondary" className="text-xs">
                       팬덤 {(m.fandomScore * 100).toFixed(0)}
                     </Badge>
@@ -184,12 +277,106 @@ export default function CastInput({ cast, onChange }: Props) {
                   </Badge>
                 )}
                 <button
+                  onClick={() => toggleSocial(m.id)}
+                  className={`ml-1 shrink-0 text-xs px-1.5 py-0.5 rounded border transition-colors ${
+                    expandedSocial.has(m.id)
+                      ? "border-gray-400 text-gray-600 bg-gray-50"
+                      : "border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600"
+                  }`}
+                  title="인스타 · X · 스레드 계정 추가"
+                >
+                  IG·X
+                </button>
+                <button
                   onClick={() => removeMember(m.id)}
-                  className="ml-1 text-gray-300 hover:text-gray-500 shrink-0"
+                  className="text-gray-300 hover:text-gray-500 shrink-0"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
+
+              {/* 소셜 계정 입력 패널 */}
+              {expandedSocial.has(m.id) && (
+                <div className="mt-2 pt-2 border-t space-y-2">
+                  <p className="text-xs text-gray-400">소셜 계정 핸들 입력 시 팔로워 수가 팬덤 점수에 반영됩니다</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* Instagram */}
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-bold text-pink-400 shrink-0 w-4 text-center">IG</span>
+                      <Input
+                        placeholder="@handle"
+                        value={socialInputs[m.id]?.ig ?? m.instagram ?? ""}
+                        onChange={(e) => updateSocialInput(m.id, "ig", e.target.value)}
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                    {/* X */}
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-bold text-sky-400 shrink-0 w-4 text-center">X</span>
+                      <Input
+                        placeholder="@handle"
+                        value={socialInputs[m.id]?.x ?? m.twitter ?? ""}
+                        onChange={(e) => updateSocialInput(m.id, "x", e.target.value)}
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                    {/* Threads */}
+                    <div className="flex items-center gap-1">
+                      <AtSign className="h-3.5 w-3.5 text-gray-500 shrink-0" />
+                      <Input
+                        placeholder="@handle"
+                        value={socialInputs[m.id]?.th ?? m.threads ?? ""}
+                        onChange={(e) => updateSocialInput(m.id, "th", e.target.value)}
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      disabled={m.socialLoading}
+                      onClick={() => fetchSocialFollowers(m.id)}
+                    >
+                      {m.socialLoading ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : null}
+                      팔로워 확인
+                    </Button>
+                    {/* 팔로워 수 표시 */}
+                    {(m.instagramFollowers != null || m.twitterFollowers != null || m.threadsFollowers != null) && (
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        {m.instagramFollowers != null && (
+                          <span className="flex items-center gap-0.5">
+                            <span className="text-xs font-bold text-pink-400">IG</span>
+                            {formatSubscribers(m.instagramFollowers)}
+                          </span>
+                        )}
+                        {m.twitterFollowers != null && (
+                          <span className="flex items-center gap-0.5">
+                            <span className="text-xs font-bold text-sky-400">X</span>
+                            {formatSubscribers(m.twitterFollowers)}
+                          </span>
+                        )}
+                        {m.threadsFollowers != null && (
+                          <span className="flex items-center gap-0.5">
+                            <AtSign className="h-3 w-3 text-gray-500" />
+                            {formatSubscribers(m.threadsFollowers)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {/* 자동 확인 실패 안내 */}
+                    {!m.socialLoading &&
+                      (m.instagramFollowers === null || m.twitterFollowers === null || m.threadsFollowers === null) &&
+                      (m.instagram || m.twitter || m.threads) && (
+                        <span className="text-xs text-gray-400">일부 자동 확인 실패 — 팔로워 수 직접 입력도 가능</span>
+                      )}
+                  </div>
+                </div>
+              )}
+            </div>
             );
           })}
         </div>
@@ -201,7 +388,7 @@ export default function CastInput({ cast, onChange }: Props) {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="배우 이름으로 검색 (조승우, 김준수...)"
+              placeholder="아티스트 이름으로 검색 (조성진, 임윤찬...)"
               value={nameInput}
               onChange={(e) => {
                 setNameInput(e.target.value);
@@ -249,6 +436,18 @@ export default function CastInput({ cast, onChange }: Props) {
               </div>
             ) : (
               <div>
+                {/* 네이버 버즈/트렌드 요약 (검색어 기준) */}
+                {buzzSummary && (buzzSummary.buzzRecent > 0 || buzzSummary.trendAvg > 0) && (
+                  <div className="px-3 py-2 bg-gray-50 border-b flex items-center gap-3 text-xs text-gray-500">
+                    <span>네이버</span>
+                    {buzzSummary.buzzRecent > 0 && (
+                      <span>뉴스 최근 30일 <span className="font-medium text-blue-500">{buzzSummary.buzzRecent}건</span></span>
+                    )}
+                    {buzzSummary.trendAvg > 0 && (
+                      <span>검색 트렌드 <span className="font-medium text-blue-500">{buzzSummary.trendAvg.toFixed(0)}</span><span className="text-gray-400">/100</span></span>
+                    )}
+                  </div>
+                )}
                 {candidates.map((c) => (
                   <button
                     key={c.channelId}
@@ -274,17 +473,9 @@ export default function CastInput({ cast, onChange }: Props) {
                           {c.grade}급
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-gray-400">
-                          구독자 {formatSubscribers(c.subscriberCount)}
-                        </span>
-                        {c.buzzTotal != null && c.buzzTotal > 0 && (
-                          <span className="text-xs text-blue-400">
-                            최근 {c.buzzRecent ?? 0}건
-                            <span className="text-gray-300"> / 전체 {c.buzzTotal.toLocaleString()}</span>
-                          </span>
-                        )}
-                      </div>
+                      <span className="text-xs text-gray-400">
+                        구독자 {formatSubscribers(c.subscriberCount)}
+                      </span>
                     </div>
                   </button>
                 ))}
@@ -302,7 +493,7 @@ export default function CastInput({ cast, onChange }: Props) {
       </div>
 
       <p className="text-xs text-gray-400">
-        배우 이름으로 검색하면 YouTube 채널과 등급(S/A/B/C)을 자동으로 확인합니다
+        이름 검색 → YouTube 자동 연결 · 추가 후 <span className="font-medium text-gray-500">IG·X</span> 버튼으로 인스타·X·스레드 팔로워 반영
       </p>
     </div>
   );

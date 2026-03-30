@@ -97,3 +97,47 @@ export function aggregateFandomScore(scores: number[]): number {
   }
   return total / wSum;
 }
+
+/** 장르별 플랫폼 가중치 */
+const PLATFORM_WEIGHTS: Record<string, { yt: number; ig: number; x: number; th: number }> = {
+  musical:     { yt: 0.50, ig: 0.30, x: 0.15, th: 0.05 },
+  play:        { yt: 0.45, ig: 0.35, x: 0.15, th: 0.05 },
+  classical:   { yt: 0.60, ig: 0.25, x: 0.10, th: 0.05 },
+  opera:       { yt: 0.55, ig: 0.28, x: 0.12, th: 0.05 },
+  pop_concert: { yt: 0.35, ig: 0.40, x: 0.15, th: 0.10 },
+};
+
+/**
+ * YouTube + Instagram + X + Threads 팔로워를 합산한 통합 팬덤 스코어 (0~1)
+ * 데이터가 없는 플랫폼은 YouTube 스코어로 대체 (최소 보장)
+ */
+export function combinedFandomScore(params: {
+  youtubeSubscribers: number;
+  instagramFollowers?: number | null;
+  twitterFollowers?: number | null;
+  threadsFollowers?: number | null;
+  genre?: string;
+}): number {
+  const w = PLATFORM_WEIGHTS[params.genre ?? "musical"] ?? PLATFORM_WEIGHTS.musical;
+
+  const ytScore = subscriberToFandomScore(params.youtubeSubscribers);
+  const igScore = params.instagramFollowers != null
+    ? subscriberToFandomScore(params.instagramFollowers)
+    : ytScore;  // 데이터 없으면 YouTube 기준으로 대체
+  const xScore = params.twitterFollowers != null
+    ? subscriberToFandomScore(params.twitterFollowers)
+    : ytScore;
+  const thScore = params.threadsFollowers != null
+    ? subscriberToFandomScore(params.threadsFollowers)
+    : ytScore;
+
+  // 소셜 데이터가 하나도 없으면 YouTube만 사용
+  const hasAny =
+    params.instagramFollowers != null ||
+    params.twitterFollowers != null ||
+    params.threadsFollowers != null;
+
+  if (!hasAny) return ytScore;
+
+  return w.yt * ytScore + w.ig * igScore + w.x * xScore + w.th * thScore;
+}

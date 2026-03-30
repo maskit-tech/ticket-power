@@ -19,10 +19,12 @@ import TheaterSelect from "@/components/TheaterSelect";
 import { PredictionResult as Result } from "@/lib/model";
 import { Theater } from "@/lib/theaters";
 import { aggregateFandomScore } from "@/lib/youtube";
+import { Genre, GENRE_OPTIONS, GENRE_CONFIG } from "@/lib/genres";
 import { BarChart3, RefreshCw } from "lucide-react";
 
 interface ShowForm {
   title: string;
+  genre: Genre;
   seatcnt: string;
   periodDays: string;
   weeklyShows: string;
@@ -32,12 +34,14 @@ interface ShowForm {
   venueTier: "0" | "1" | "2";
   isImported: boolean;
   isTour: boolean;
+  repertoireGrade: "0" | "1" | "2" | "3";
 }
 
 const DEFAULT_FORM: ShowForm = {
   title: "",
-  seatcnt: "1000",
-  periodDays: "60",
+  genre: "musical",
+  seatcnt: "",
+  periodDays: "",
   weeklyShows: "8",
   priceAvg: "90000",
   priceMax: "110000",
@@ -45,6 +49,7 @@ const DEFAULT_FORM: ShowForm = {
   venueTier: "1",
   isImported: false,
   isTour: false,
+  repertoireGrade: "0",
 };
 
 interface Scenario {
@@ -85,6 +90,8 @@ export default function Home() {
           venueTier: parseInt(f.venueTier),
           isImported: f.isImported,
           isTour: f.isTour,
+          genre: f.genre,
+          repertoireGrade: parseInt(f.repertoireGrade),
           castFandomScore,
           hasCast,
         }),
@@ -96,13 +103,15 @@ export default function Home() {
     }
   }, []);
 
-  // 극장 선택 시 좌석수·등급 자동 반영
+  // 극장 선택 시 좌석수·등급·기간 기본값 자동 반영
   useEffect(() => {
     if (!theater) return;
     setForm((prev) => ({
       ...prev,
       seatcnt: String(theater.seatcnt),
       venueTier: String(theater.venueTier) as "0" | "1" | "2",
+      periodDays: prev.periodDays || "30",
+      weeklyShows: prev.weeklyShows || "8",
     }));
   }, [theater]);
 
@@ -110,13 +119,8 @@ export default function Home() {
     const hasCastLoading = cast.some((m) => m.loading);
     if (hasCastLoading) return;
 
-    // 의미있는 입력이 있을 때만 예측 실행
-    const hasInput =
-      form.title.trim() !== "" ||  // 공연명 입력
-      theater !== null ||            // 공연장 선택
-      cast.length > 0;              // 캐스트 추가
-
-    if (!hasInput) {
+    // 공연장 선택이 필수 조건
+    if (!theater) {
       setResult(null);
       return;
     }
@@ -170,6 +174,25 @@ export default function Home() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* 장르 */}
+                <div>
+                  <Label className="text-xs text-gray-500">장르</Label>
+                  <Select
+                    value={form.genre}
+                    onValueChange={(v) => updateForm("genre", v as Genre)}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GENRE_OPTIONS.map((g) => (
+                        <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 text-xs text-gray-400">{GENRE_CONFIG[form.genre].hint}</p>
+                </div>
+
                 {/* 공연명 */}
                 <div>
                   <Label className="text-xs text-gray-500">공연명 (선택)</Label>
@@ -183,7 +206,7 @@ export default function Home() {
 
                 {/* 극장 선택 */}
                 <div>
-                  <Label className="text-xs text-gray-500">공연장</Label>
+                  <Label className="text-xs text-gray-500">공연장 <span className="text-red-400">*</span></Label>
                   <div className="mt-1">
                     <TheaterSelect selected={theater} onSelect={setTheater} />
                   </div>
@@ -275,6 +298,24 @@ export default function Home() {
                   </div>
                 </div>
 
+                <div>
+                  <Label className="text-xs text-gray-500">작품/레퍼토리 등급</Label>
+                  <Select
+                    value={form.repertoireGrade}
+                    onValueChange={(v) => updateForm("repertoireGrade", v as "0"|"1"|"2"|"3")}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">신작/실험작 — 검증되지 않은 작품</SelectItem>
+                      <SelectItem value="1">알려진 작품 — 라이선스·소규모 명작</SelectItem>
+                      <SelectItem value="2">대중적 명작 — 빨래·광화문연가·베토벤</SelectItem>
+                      <SelectItem value="3">세계적 명작 — 레미제라블·베토벤 9번</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="flex gap-4">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -303,12 +344,12 @@ export default function Home() {
                 <CardTitle className="text-sm font-semibold text-gray-700">
                   캐스트
                   <span className="ml-2 text-xs font-normal text-gray-400">
-                    YouTube 연결 시 팬덤 영향도 자동 반영
+                    YouTube · 인스타 · X · 스레드 팔로워 합산 팬덤 반영
                   </span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <CastInput cast={cast} onChange={setCast} />
+                <CastInput cast={cast} onChange={setCast} genre={form.genre} />
               </CardContent>
             </Card>
           </div>
@@ -343,8 +384,8 @@ export default function Home() {
                   <PredictionResult result={result} />
                 ) : (
                   <div className="flex h-40 flex-col items-center justify-center gap-2 text-gray-400">
-                    <p className="text-sm">공연명, 공연장, 또는 캐스트를</p>
-                    <p className="text-sm">입력하면 예측이 시작됩니다</p>
+                    <p className="text-sm font-medium">공연장을 선택해야 예측이 시작됩니다</p>
+                    <p className="text-xs text-gray-300">좌석 수와 공연장 규모가 기준이 됩니다</p>
                   </div>
                 )}
               </CardContent>

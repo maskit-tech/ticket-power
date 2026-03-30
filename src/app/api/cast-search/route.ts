@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { subscriberToFandomScore } from "@/lib/youtube";
 import { getActorGrade } from "@/lib/theaters";
-import { getNewsBuzz, combineFandomScore } from "@/lib/naver";
+import { getNewsBuzz, getTrendScore, combineFandomScore } from "@/lib/naver";
+import { Genre, GENRE_CONFIG } from "@/lib/genres";
 
 const YT_API_KEY = process.env.YOUTUBE_API_KEY;
 
 export async function POST(req: NextRequest) {
   try {
-    const { name } = await req.json();
+    const { name, genre } = await req.json();
+    const genreWeights = GENRE_CONFIG[(genre as Genre) ?? "musical"].fandomWeights;
     if (!name?.trim()) {
       return NextResponse.json({ error: "이름을 입력해주세요" }, { status: 400 });
     }
@@ -15,16 +17,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "YouTube API 키 없음" }, { status: 500 });
     }
 
-    // 1. YouTube 채널 검색 + 뉴스 버즈 병렬 조회
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(name + " 뮤지컬")}&type=channel&maxResults=4&key=${YT_API_KEY}`;
-    const [searchRes, buzz] = await Promise.all([
+    // 1. YouTube 채널 검색 + 뉴스 버즈 + 데이터랩 트렌드 병렬 조회
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(name)}&type=channel&maxResults=4&key=${YT_API_KEY}`;
+    const [searchRes, buzz, trend] = await Promise.all([
       fetch(searchUrl),
       getNewsBuzz(name),
+      getTrendScore(name),
     ]);
     const searchData = await searchRes.json();
 
     if (!searchData.items?.length) {
-      return NextResponse.json({ candidates: [], buzz });
+      return NextResponse.json({ candidates: [], buzz, trend });
     }
 
     // 2. 채널 상세 조회
@@ -36,7 +39,7 @@ export async function POST(req: NextRequest) {
     const candidates = (detailData.items ?? []).map((item: any) => {
       const subscribers = parseInt(item.statistics?.subscriberCount ?? "0");
       const ytScore = subscriberToFandomScore(subscribers);
-      const fandomScore = combineFandomScore(ytScore, buzz.buzzScore);
+      const fandomScore = combineFandomScore(ytScore, buzz.buzzScore, trend.trendScore, genreWeights);
       const grade = getActorGrade(subscribers);
       return {
         channelId: item.id,
@@ -47,6 +50,8 @@ export async function POST(req: NextRequest) {
         fandomScore,
         ytScore,
         buzzScore: buzz.buzzScore,
+        trendScore: trend.trendScore,
+        trendAvg: trend.avg,
         buzzTotal: buzz.total,
         buzzRecent: buzz.recentCount,
         grade: grade.grade,
@@ -56,7 +61,7 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({ candidates, buzz });
+    return NextResponse.json({ candidates, buzz, trend });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

@@ -1,20 +1,30 @@
 /**
- * 네이버 검색 API — 뉴스 버즈 조회 (시간 감쇠 적용)
- *
- * 단순 기사 수가 아니라 최신 기사일수록 높은 가중치를 부여한다.
- * 7일 이내 기사 = 1.0 / 30일 이내 = 0.5 / 90일 이내 = 0.2 / 이후 = 0.05
+ * 네이버 API 연동
+ * 1. 검색 API — 뉴스 버즈 (시간 감쇠 적용)
+ * 2. 데이터랩 — 검색어 트렌드 (최근 3개월 평균)
  */
 
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
 
+const HEADERS = () => ({
+  "X-Naver-Client-Id": NAVER_CLIENT_ID!,
+  "X-Naver-Client-Secret": NAVER_CLIENT_SECRET!,
+  "Content-Type": "application/json",
+});
+
 export interface NewsBuzz {
-  total: number;        // 검색된 총 기사 수
-  recentCount: number;  // 최근 30일 기사 수
-  buzzScore: number;    // 0~1 시간 감쇠 적용 스코어
+  total: number;
+  recentCount: number;
+  buzzScore: number;
 }
 
-/** 경과 일수 → 가중치 */
+export interface TrendScore {
+  avg: number;       // 최근 3개월 평균 검색량 (0~100)
+  trendScore: number; // 0~1 정규화
+}
+
+/** 경과 일수 → 뉴스 가중치 */
 function timeDecay(daysSince: number): number {
   if (daysSince <= 7)  return 1.0;
   if (daysSince <= 30) return 0.5;
@@ -22,9 +32,13 @@ function timeDecay(daysSince: number): number {
   return 0.05;
 }
 
+/** 날짜 포맷 YYYY-MM-DD */
+function fmtDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 /**
- * 배우 이름으로 최근 뉴스 기사 조회 + 시간 감쇠 스코어 계산
- * 최근 100건의 pubDate를 파싱해 가중 합산
+ * 네이버 뉴스 버즈 조회 (시간 감쇠 적용)
  */
 export async function getNewsBuzz(name: string): Promise<NewsBuzz> {
   if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
@@ -34,13 +48,7 @@ export async function getNewsBuzz(name: string): Promise<NewsBuzz> {
   const query = encodeURIComponent(`${name} 공연`);
   const url = `https://openapi.naver.com/v1/search/news.json?query=${query}&display=100&sort=date`;
 
-  const res = await fetch(url, {
-    headers: {
-      "X-Naver-Client-Id": NAVER_CLIENT_ID,
-      "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
-    },
-  });
-
+  const res = await fetch(url, { headers: HEADERS() });
   if (!res.ok) return { total: 0, recentCount: 0, buzzScore: 0 };
 
   const data = await res.json();
@@ -59,17 +67,69 @@ export async function getNewsBuzz(name: string): Promise<NewsBuzz> {
     if (daysSince <= 30) recentCount++;
   }
 
-  // 가중 합산 → 0~1 정규화
-  // 최근 100건이 모두 7일 이내면 100점 → 1.0
   const buzzScore = Math.min(1, weightedSum / 100);
-
   return { total, recentCount, buzzScore };
 }
 
 /**
- * YouTube 팬덤 스코어와 뉴스 버즈 스코어를 합산
- * YouTube 70% + 뉴스(최신성 반영) 30%
+ * 네이버 데이터랩 검색어 트렌드 조회
+ * 최근 3개월 평균 검색량 → 0~1 트렌드 스코어
  */
-export function combineFandomScore(youtubeScore: number, buzzScore: number): number {
-  return youtubeScore * 0.7 + buzzScore * 0.3;
+export async function getTrendScore(name: string): Promise<TrendScore> {
+  if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
+    return { avg: 0, trendScore: 0 };
+  }
+
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - 3);
+
+  const body = JSON.stringify({
+    startDate: fmtDate(startDate),
+    endDate: fmtDate(endDate),
+    timeUnit: "month",
+    keywordGroups: [{ groupName: name, keywords: [name] }],
+  });
+
+  try {
+    const res = await fetch("https://openapi.naver.com/v1/datalab/search", {
+      method: "POST",
+      headers: HEADERS(),
+      body,
+    });
+
+    if (!res.ok) return { avg: 0, trendScore: 0 };
+
+    const data = await res.json();
+    const ratios: number[] = (data.results?.[0]?.data ?? []).map(
+      (d: { ratio: number }) => d.ratio
+    );
+
+    if (ratios.length === 0) return { avg: 0, trendScore: 0 };
+
+    const avg = ratios.reduce((s, v) => s + v, 0) / ratios.length;
+    // 데이터랩 ratio는 0~100, 50 이상이면 트렌드 강세
+    const trendScore = Math.min(1, avg / 100);
+
+    return { avg, trendScore };
+  } catch {
+    return { avg: 0, trendScore: 0 };
+  }
+}
+
+/**
+ * YouTube + 뉴스 버즈 + 데이터랩 트렌드 합산
+ * 장르별 가중치를 받아 계산. 기본값: YouTube 60% + 뉴스 20% + 트렌드 20%
+ */
+export function combineFandomScore(
+  youtubeScore: number,
+  buzzScore: number,
+  trendScore: number,
+  weights = { youtube: 0.6, news: 0.2, trend: 0.2 }
+): number {
+  return (
+    youtubeScore * weights.youtube +
+    buzzScore * weights.news +
+    trendScore * weights.trend
+  );
 }
