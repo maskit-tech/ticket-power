@@ -5,7 +5,6 @@ import { AlertTriangle, Info } from "lucide-react";
 
 interface Props {
   result: Result;
-  priceAvg: number;
 }
 
 const TIER_CONFIG: Record<Tier, { label: string; color: string; bg: string }> = {
