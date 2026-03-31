@@ -66,7 +66,8 @@ export default function CastInput({ cast, onChange, genre = "musical" }: Props) 
   const [candidates, setCandidates] = useState<SearchCandidate[]>([]);
   const [buzzSummary, setBuzzSummary] = useState<BuzzSummary | null>(null);
   const [showCandidates, setShowCandidates] = useState(false);
-  const [expandedSocial, setExpandedSocial] = useState<Set<string>>(new Set());
+  // 카드별 소셜 플랫폼 확장 상태 (null = 닫힘)
+  const [expandedSocial, setExpandedSocial] = useState<Record<string, 'ig' | 'x' | 'th' | null>>({});
   const [socialInputs, setSocialInputs] = useState<Record<string, { ig: string; x: string; th: string }>>({});
   // 카드별 YouTube 검색 상태
   const [cardSearch, setCardSearch] = useState<Record<string, {
@@ -110,13 +111,11 @@ export default function CastInput({ cast, onChange, genre = "musical" }: Props) 
     setCardSearch((prev) => ({ ...prev, [memberId]: { ...prev[memberId], show: false } }));
   }
 
-  function toggleSocial(id: string) {
-    setExpandedSocial((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  function toggleSocialPlatform(id: string, platform: 'ig' | 'x' | 'th') {
+    setExpandedSocial((prev) => ({
+      ...prev,
+      [id]: prev[id] === platform ? null : platform,
+    }));
     if (!socialInputs[id]) {
       const member = cast.find((m) => m.id === id);
       setSocialInputs((prev) => ({
@@ -326,17 +325,87 @@ export default function CastInput({ cast, onChange, genre = "musical" }: Props) 
                     YouTube 연결
                   </button>
                 )}
-                <button
-                  onClick={() => toggleSocial(m.id)}
-                  className={`ml-1 shrink-0 text-xs px-1.5 py-0.5 rounded border transition-colors ${
-                    expandedSocial.has(m.id)
-                      ? "border-gray-400 text-gray-600 bg-gray-50"
-                      : "border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600"
-                  }`}
-                  title="인스타 · X · 스레드 계정 추가"
-                >
-                  IG·X
-                </button>
+                {/* Instagram */}
+                {m.instagramFollowers != null ? (
+                  <button
+                    onClick={() => toggleSocialPlatform(m.id, 'ig')}
+                    className={`shrink-0 text-xs px-1.5 py-0.5 rounded border transition-colors flex items-center gap-0.5 ${
+                      expandedSocial[m.id] === 'ig'
+                        ? "border-pink-300 text-pink-600 bg-pink-50"
+                        : "border-pink-200 text-pink-500 hover:border-pink-300"
+                    }`}
+                  >
+                    <span className="font-bold">IG</span>
+                    <span>{formatSubscribers(m.instagramFollowers)}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => toggleSocialPlatform(m.id, 'ig')}
+                    className={`shrink-0 text-xs px-1.5 py-0.5 rounded border border-dashed transition-colors flex items-center gap-0.5 ${
+                      expandedSocial[m.id] === 'ig'
+                        ? "border-pink-300 text-pink-500"
+                        : "border-gray-300 text-gray-400 hover:border-pink-300 hover:text-pink-400"
+                    }`}
+                  >
+                    <span className="font-bold">IG</span>
+                    <span>연결</span>
+                  </button>
+                )}
+
+                {/* X (Twitter) */}
+                {m.twitterFollowers != null ? (
+                  <button
+                    onClick={() => toggleSocialPlatform(m.id, 'x')}
+                    className={`shrink-0 text-xs px-1.5 py-0.5 rounded border transition-colors flex items-center gap-0.5 ${
+                      expandedSocial[m.id] === 'x'
+                        ? "border-sky-300 text-sky-600 bg-sky-50"
+                        : "border-sky-200 text-sky-500 hover:border-sky-300"
+                    }`}
+                  >
+                    <span className="font-bold">X</span>
+                    <span>{formatSubscribers(m.twitterFollowers)}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => toggleSocialPlatform(m.id, 'x')}
+                    className={`shrink-0 text-xs px-1.5 py-0.5 rounded border border-dashed transition-colors flex items-center gap-0.5 ${
+                      expandedSocial[m.id] === 'x'
+                        ? "border-sky-300 text-sky-500"
+                        : "border-gray-300 text-gray-400 hover:border-sky-300 hover:text-sky-400"
+                    }`}
+                  >
+                    <span className="font-bold">X</span>
+                    <span>연결</span>
+                  </button>
+                )}
+
+                {/* Threads */}
+                {m.threadsFollowers != null ? (
+                  <button
+                    onClick={() => toggleSocialPlatform(m.id, 'th')}
+                    className={`shrink-0 text-xs px-1.5 py-0.5 rounded border transition-colors flex items-center gap-0.5 ${
+                      expandedSocial[m.id] === 'th'
+                        ? "border-gray-400 text-gray-700 bg-gray-50"
+                        : "border-gray-300 text-gray-500 hover:border-gray-400"
+                    }`}
+                  >
+                    <AtSign className="h-2.5 w-2.5" />
+                    <span>{formatSubscribers(m.threadsFollowers)}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => toggleSocialPlatform(m.id, 'th')}
+                    className={`shrink-0 text-xs px-1.5 py-0.5 rounded border border-dashed transition-colors flex items-center gap-0.5 ${
+                      expandedSocial[m.id] === 'th'
+                        ? "border-gray-400 text-gray-600"
+                        : "border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-600"
+                    }`}
+                  >
+                    <AtSign className="h-2.5 w-2.5" />
+                    <span>연결</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => removeMember(m.id)}
                   className="text-gray-300 hover:text-gray-500 shrink-0"
@@ -345,87 +414,60 @@ export default function CastInput({ cast, onChange, genre = "musical" }: Props) 
                 </button>
               </div>
 
-              {/* 소셜 계정 입력 패널 */}
-              {expandedSocial.has(m.id) && (
-                <div className="mt-2 pt-2 border-t space-y-2">
-                  <p className="text-xs text-gray-400">소셜 계정 핸들 입력 시 팔로워 수가 팬덤 점수에 반영됩니다</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {/* Instagram */}
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-bold text-pink-400 shrink-0 w-4 text-center">IG</span>
+              {/* 소셜 플랫폼 개별 입력 패널 */}
+              {expandedSocial[m.id] != null && (() => {
+                const platform = expandedSocial[m.id]!;
+                const platformConfig = {
+                  ig: { label: "Instagram", color: "text-pink-500", placeholder: "@handle 또는 사용자명" },
+                  x: { label: "X (Twitter)", color: "text-sky-500", placeholder: "@handle 또는 사용자명" },
+                  th: { label: "Threads", color: "text-gray-600", placeholder: "@handle 또는 사용자명" },
+                }[platform];
+                const currentVal = socialInputs[m.id]?.[platform] ?? (
+                  platform === 'ig' ? m.instagram ?? "" :
+                  platform === 'x' ? m.twitter ?? "" :
+                  m.threads ?? ""
+                );
+                return (
+                  <div className="border-t px-3 py-2.5 space-y-2">
+                    <p className="text-xs text-gray-400">
+                      <span className={`font-semibold ${platformConfig.color}`}>{platformConfig.label}</span> 핸들 입력 시 팔로워 수가 팬덤 점수에 반영됩니다
+                    </p>
+                    <div className="flex items-center gap-2">
                       <Input
-                        placeholder="@handle"
-                        value={socialInputs[m.id]?.ig ?? m.instagram ?? ""}
-                        onChange={(e) => updateSocialInput(m.id, "ig", e.target.value)}
-                        className="h-7 text-xs"
+                        placeholder={platformConfig.placeholder}
+                        value={currentVal}
+                        onChange={(e) => updateSocialInput(m.id, platform, e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && fetchSocialFollowers(m.id)}
+                        className="h-7 text-xs flex-1"
+                        autoFocus
                       />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs shrink-0"
+                        disabled={m.socialLoading || !currentVal.trim()}
+                        onClick={() => fetchSocialFollowers(m.id)}
+                      >
+                        {m.socialLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "확인"}
+                      </Button>
+                      <button
+                        className="text-gray-300 hover:text-gray-500 shrink-0"
+                        onClick={() => setExpandedSocial((prev) => ({ ...prev, [m.id]: null }))}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                    {/* X */}
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-bold text-sky-400 shrink-0 w-4 text-center">X</span>
-                      <Input
-                        placeholder="@handle"
-                        value={socialInputs[m.id]?.x ?? m.twitter ?? ""}
-                        onChange={(e) => updateSocialInput(m.id, "x", e.target.value)}
-                        className="h-7 text-xs"
-                      />
-                    </div>
-                    {/* Threads */}
-                    <div className="flex items-center gap-1">
-                      <AtSign className="h-3.5 w-3.5 text-gray-500 shrink-0" />
-                      <Input
-                        placeholder="@handle"
-                        value={socialInputs[m.id]?.th ?? m.threads ?? ""}
-                        onChange={(e) => updateSocialInput(m.id, "th", e.target.value)}
-                        className="h-7 text-xs"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs"
-                      disabled={m.socialLoading}
-                      onClick={() => fetchSocialFollowers(m.id)}
-                    >
-                      {m.socialLoading ? (
-                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                      ) : null}
-                      팔로워 확인
-                    </Button>
-                    {/* 팔로워 수 표시 */}
-                    {(m.instagramFollowers != null || m.twitterFollowers != null || m.threadsFollowers != null) && (
-                      <div className="flex items-center gap-2 text-xs text-gray-500">
-                        {m.instagramFollowers != null && (
-                          <span className="flex items-center gap-0.5">
-                            <span className="text-xs font-bold text-pink-400">IG</span>
-                            {formatSubscribers(m.instagramFollowers)}
-                          </span>
-                        )}
-                        {m.twitterFollowers != null && (
-                          <span className="flex items-center gap-0.5">
-                            <span className="text-xs font-bold text-sky-400">X</span>
-                            {formatSubscribers(m.twitterFollowers)}
-                          </span>
-                        )}
-                        {m.threadsFollowers != null && (
-                          <span className="flex items-center gap-0.5">
-                            <AtSign className="h-3 w-3 text-gray-500" />
-                            {formatSubscribers(m.threadsFollowers)}
-                          </span>
-                        )}
-                      </div>
-                    )}
                     {/* 자동 확인 실패 안내 */}
-                    {!m.socialLoading &&
-                      (m.instagramFollowers === null || m.twitterFollowers === null || m.threadsFollowers === null) &&
-                      (m.instagram || m.twitter || m.threads) && (
-                        <span className="text-xs text-gray-400">일부 자동 확인 실패 — 팔로워 수 직접 입력도 가능</span>
-                      )}
+                    {!m.socialLoading && (
+                      (platform === 'ig' && m.instagramFollowers === null && m.instagram) ||
+                      (platform === 'x' && m.twitterFollowers === null && m.twitter) ||
+                      (platform === 'th' && m.threadsFollowers === null && m.threads)
+                    ) && (
+                      <p className="text-xs text-amber-500">자동 확인 실패 — 팔로워 수를 직접 입력해도 됩니다</p>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* 카드별 YouTube 검색 드롭다운 */}
               {cardSearch[m.id]?.show && (
@@ -599,7 +641,7 @@ export default function CastInput({ cast, onChange, genre = "musical" }: Props) 
       </div>
 
       <p className="text-xs text-gray-400">
-        이름 검색 → YouTube 자동 연결 · 추가 후 <span className="font-medium text-gray-500">IG·X</span> 버튼으로 인스타·X·스레드 팔로워 반영
+        이름 검색 → YouTube 자동 연결 · 카드의 <span className="font-medium text-pink-400">IG</span> <span className="font-medium text-sky-400">X</span> <span className="font-medium text-gray-500">@Threads</span> 버튼으로 소셜 팔로워 개별 반영
       </p>
     </div>
   );
