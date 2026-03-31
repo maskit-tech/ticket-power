@@ -20,7 +20,7 @@ import { PredictionResult as Result } from "@/lib/model";
 import { Theater } from "@/lib/theaters";
 import { aggregateFandomScore } from "@/lib/youtube";
 import { Genre, GENRE_OPTIONS, GENRE_CONFIG } from "@/lib/genres";
-import { BarChart3, RefreshCw } from "lucide-react";
+import { BarChart3, RefreshCw, Link2, Loader2, CheckCircle2 } from "lucide-react";
 
 interface ShowForm {
   title: string;
@@ -60,7 +60,15 @@ interface Scenario {
   castCount: number;
 }
 
+type Mode = "open" | "plan";
+
 export default function Home() {
+  const [mode, setMode] = useState<Mode>("open");
+  const [urlInput, setUrlInput] = useState("");
+  const [urlLoading, setUrlLoading] = useState(false);
+  const [urlAnalyzed, setUrlAnalyzed] = useState(false);
+  const [detectedCastNames, setDetectedCastNames] = useState<string[]>([]);
+
   const [form, setForm] = useState<ShowForm>(DEFAULT_FORM);
   const [cast, setCast] = useState<CastMember[]>([]);
   const [theater, setTheater] = useState<Theater | null>(null);
@@ -98,10 +106,30 @@ export default function Home() {
       });
       const data = await res.json();
       setResult(data);
+
+      // 예측 로그
+      fetch("/api/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "prediction",
+          mode,
+          genre: f.genre,
+          title: f.title,
+          seatcnt: parseInt(f.seatcnt) || 0,
+          periodDays: parseInt(f.periodDays) || 0,
+          priceMax: parseInt(f.priceMax) || 0,
+          castCount: c.filter((m) => !m.loading).length,
+          tier: data.tier,
+          occupancy: data.occupancy,
+          revenueExpected: data.revenue?.expected,
+          audienceExpected: data.audience?.expected,
+        }),
+      }).catch(() => {});
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [mode]);
 
   // 극장 선택 시 좌석수·등급·기간 기본값 자동 반영
   useEffect(() => {
@@ -143,6 +171,67 @@ export default function Home() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  async function analyzeUrl() {
+    if (!urlInput.trim()) return;
+    setUrlLoading(true);
+    setUrlAnalyzed(false);
+    try {
+      const res = await fetch("/api/analyze-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: urlInput.trim() }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+
+      // 폼 자동완성
+      setForm((prev) => ({
+        ...prev,
+        title: data.title || prev.title,
+        genre: (data.genre as Genre) || prev.genre,
+        seatcnt: data.seatcnt ? String(data.seatcnt) : prev.seatcnt,
+        periodDays: data.periodDays ? String(data.periodDays) : prev.periodDays,
+        weeklyShows: data.weeklyShows ? String(data.weeklyShows) : prev.weeklyShows,
+        priceAvg: data.priceAvg ? String(data.priceAvg) : prev.priceAvg,
+        priceMax: data.priceMax ? String(data.priceMax) : prev.priceMax,
+        isImported: data.isImported ?? prev.isImported,
+        isTour: data.isTour ?? prev.isTour,
+        companyTier: data.company
+          ? (["EMK","오디컴퍼니","신시컴퍼니","CJ ENM","쇼노트"].some(t => data.company.includes(t)) ? "2" : "1")
+          : prev.companyTier,
+      }));
+
+      // 출연진 이름 목록 (YouTube 검색 힌트)
+      if (data.castNames?.length) setDetectedCastNames(data.castNames.slice(0, 8));
+
+      // 공연장 힌트 저장 (venue 이름이 있으면 검색 힌트로)
+      if (data.venue) {
+        // TheaterSelect에 힌트 전달용 — 직접 매칭은 어려우니 title에 venue 보여줌
+      }
+
+      setUrlAnalyzed(true);
+
+      // 사용 로그 기록
+      fetch("/api/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "url_analyzed",
+          mode,
+          url: urlInput.trim(),
+          genre: data.genre,
+          title: data.title,
+          venue: data.venue,
+          castCount: data.castNames?.length ?? 0,
+        }),
+      }).catch(() => {});
+    } catch (e) {
+      alert(`분석 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setUrlLoading(false);
+    }
+  }
+
   const TIER_COLOR: Record<string, string> = {
     HIGH: "bg-red-100 text-red-700",
     MID: "bg-yellow-100 text-yellow-700",
@@ -164,6 +253,71 @@ export default function Home() {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-8 space-y-6">
+
+        {/* 모드 탭 */}
+        <div className="flex rounded-lg border bg-white p-1 w-fit">
+          <button
+            onClick={() => { setMode("open"); setUrlAnalyzed(false); }}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              mode === "open"
+                ? "bg-gray-900 text-white"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            오픈된 공연 분석
+          </button>
+          <button
+            onClick={() => setMode("plan")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              mode === "plan"
+                ? "bg-gray-900 text-white"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            기획 중인 공연 예측
+          </button>
+        </div>
+
+        {/* URL 분석 섹션 (오픈 모드) */}
+        {mode === "open" && (
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <Label className="text-xs text-gray-500 flex items-center gap-1">
+                <Link2 className="h-3.5 w-3.5" />
+                공연 링크 붙여넣기
+              </Label>
+              <div className="flex gap-2 mt-2">
+                <Input
+                  placeholder="인터파크, 예스24, KOPIS 링크 붙여넣기"
+                  value={urlInput}
+                  onChange={(e) => { setUrlInput(e.target.value); setUrlAnalyzed(false); }}
+                  onKeyDown={(e) => e.key === "Enter" && analyzeUrl()}
+                  className="flex-1"
+                />
+                <Button onClick={analyzeUrl} disabled={urlLoading || !urlInput.trim()} className="shrink-0">
+                  {urlLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "분석"}
+                </Button>
+              </div>
+              {urlAnalyzed && (
+                <p className="mt-2 text-xs text-green-600 flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  분석 완료 — 아래 폼이 자동 채워졌습니다. 확인 후 수정하세요.
+                </p>
+              )}
+              {detectedCastNames.length > 0 && (
+                <div className="mt-3 pt-3 border-t">
+                  <p className="text-xs text-gray-500 mb-1">발견된 출연진 — 아래 캐스트 섹션에서 검색해 추가하세요</p>
+                  <div className="flex flex-wrap gap-1">
+                    {detectedCastNames.map((name) => (
+                      <span key={name} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{name}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* 입력 패널 */}
           <div className="space-y-4">
