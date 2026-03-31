@@ -68,6 +68,47 @@ export default function CastInput({ cast, onChange, genre = "musical" }: Props) 
   const [showCandidates, setShowCandidates] = useState(false);
   const [expandedSocial, setExpandedSocial] = useState<Set<string>>(new Set());
   const [socialInputs, setSocialInputs] = useState<Record<string, { ig: string; x: string; th: string }>>({});
+  // 카드별 YouTube 검색 상태
+  const [cardSearch, setCardSearch] = useState<Record<string, {
+    loading: boolean;
+    candidates: SearchCandidate[];
+    show: boolean;
+  }>>({});
+
+  async function searchYoutubeForCard(memberId: string, name: string) {
+    setCardSearch((prev) => ({ ...prev, [memberId]: { loading: true, candidates: [], show: true } }));
+    try {
+      const res = await fetch("/api/cast-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, genre }),
+      });
+      const data = await res.json();
+      setCardSearch((prev) => ({
+        ...prev,
+        [memberId]: { loading: false, candidates: data.candidates ?? [], show: true },
+      }));
+    } catch {
+      setCardSearch((prev) => ({ ...prev, [memberId]: { loading: false, candidates: [], show: false } }));
+    }
+  }
+
+  function linkYoutubeToCard(memberId: string, c: SearchCandidate) {
+    onChange(cast.map((m) => m.id === memberId ? {
+      ...m,
+      youtubeUrl: c.youtubeUrl,
+      subscriberCount: c.subscriberCount,
+      fandomScore: c.fandomScore,
+      buzzTotal: c.buzzTotal,
+      buzzRecent: c.buzzRecent,
+      channelTitle: c.title,
+      thumbnailUrl: c.thumbnailUrl,
+      grade: c.grade,
+      gradeLabel: c.gradeLabel,
+      gradeColor: c.gradeColor,
+    } : m));
+    setCardSearch((prev) => ({ ...prev, [memberId]: { ...prev[memberId], show: false } }));
+  }
 
   function toggleSocial(id: string) {
     setExpandedSocial((prev) => {
@@ -273,9 +314,17 @@ export default function CastInput({ cast, onChange, genre = "musical" }: Props) 
                     </Badge>
                   </div>
                 ) : (
-                  <Badge variant="outline" className="text-xs text-gray-400 shrink-0">
-                    YouTube 없음
-                  </Badge>
+                  <button
+                    onClick={() => searchYoutubeForCard(m.id, m.name)}
+                    disabled={cardSearch[m.id]?.loading}
+                    className="shrink-0 text-xs px-2 py-0.5 rounded border border-dashed border-gray-300 text-gray-400 hover:border-red-400 hover:text-red-500 transition-colors flex items-center gap-1"
+                    title="YouTube 채널 연결"
+                  >
+                    {cardSearch[m.id]?.loading
+                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                      : <PlayCircle className="h-3 w-3" />}
+                    YouTube 연결
+                  </button>
                 )}
                 <button
                   onClick={() => toggleSocial(m.id)}
@@ -375,6 +424,62 @@ export default function CastInput({ cast, onChange, genre = "musical" }: Props) 
                         <span className="text-xs text-gray-400">일부 자동 확인 실패 — 팔로워 수 직접 입력도 가능</span>
                       )}
                   </div>
+                </div>
+              )}
+
+              {/* 카드별 YouTube 검색 드롭다운 */}
+              {cardSearch[m.id]?.show && (
+                <div className="border-t">
+                  {cardSearch[m.id].loading ? (
+                    <div className="flex items-center gap-2 p-3 text-xs text-gray-400">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      YouTube 채널 검색 중...
+                    </div>
+                  ) : cardSearch[m.id].candidates.length === 0 ? (
+                    <div className="p-3 text-xs text-gray-400 flex items-center justify-between">
+                      <span>YouTube 채널을 찾지 못했습니다</span>
+                      <button
+                        className="text-gray-300 hover:text-gray-500"
+                        onClick={() => setCardSearch((prev) => ({ ...prev, [m.id]: { ...prev[m.id], show: false } }))}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      {cardSearch[m.id].candidates.map((c) => (
+                        <button
+                          key={c.channelId}
+                          className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b last:border-0 flex items-center gap-2"
+                          onClick={() => linkYoutubeToCard(m.id, c)}
+                        >
+                          {c.thumbnailUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={c.thumbnailUrl} alt={c.title} className="h-7 w-7 rounded-full object-cover shrink-0" />
+                          ) : (
+                            <div className="h-7 w-7 rounded-full bg-gray-100 shrink-0 flex items-center justify-center">
+                              <User className="h-3.5 w-3.5 text-gray-400" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-medium truncate">{c.title}</span>
+                              <span className={`text-xs px-1 py-0 rounded shrink-0 ${c.gradeColor}`}>{c.grade}급</span>
+                            </div>
+                            <span className="text-xs text-gray-400">구독자 {formatSubscribers(c.subscriberCount)}</span>
+                          </div>
+                          <PlayCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                        </button>
+                      ))}
+                      <button
+                        className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50 flex items-center justify-between"
+                        onClick={() => setCardSearch((prev) => ({ ...prev, [m.id]: { ...prev[m.id], show: false } }))}
+                      >
+                        <span>닫기</span>
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

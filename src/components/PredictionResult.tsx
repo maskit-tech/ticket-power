@@ -22,13 +22,24 @@ const CONFIDENCE_CONFIG = {
 function fmt(n: number) {
   return n.toLocaleString("ko-KR");
 }
-function fmtBillion(n: number) {
-  return `${(n / 1e8).toFixed(1)}억`;
+
+/** 최소·예상·최대 중 최대값 기준으로 단위 통일 */
+function revenueUnit(max: number) {
+  if (max >= 1e8) return { divisor: 1e8, suffix: "억", decimals: 1 };
+  if (max >= 1e7) return { divisor: 1e7, suffix: "천만", decimals: 1 };
+  if (max >= 1e6) return { divisor: 1e6, suffix: "백만", decimals: 0 };
+  return { divisor: 1e4, suffix: "만", decimals: 0 };
+}
+
+function fmtRevenue(n: number, unit: ReturnType<typeof revenueUnit>): string {
+  const val = n / unit.divisor;
+  return `${unit.decimals > 0 ? val.toFixed(unit.decimals) : Math.round(val).toLocaleString()}${unit.suffix}`;
 }
 
 export default function PredictionResult({ result }: Props) {
   const tier = TIER_CONFIG[result.tier];
   const conf = CONFIDENCE_CONFIG[result.confidence];
+  const revUnit = revenueUnit(result.revenue.max);
 
   return (
     <div className={`rounded-xl border-2 p-5 space-y-4 ${tier.bg}`}>
@@ -88,17 +99,17 @@ export default function PredictionResult({ result }: Props) {
         <div className="rounded-lg bg-white/70 p-3 text-center">
           <p className="text-xs text-gray-400 mb-1">최소</p>
           <p className="text-sm font-semibold text-gray-600">{fmt(result.audience.min)}명</p>
-          <p className="text-xs text-gray-400">{fmtBillion(result.revenue.min)}</p>
+          <p className="text-xs text-gray-400">{fmtRevenue(result.revenue.min, revUnit)}</p>
         </div>
         <div className="rounded-lg bg-white p-3 text-center border-2 border-current/20">
           <p className="text-xs text-gray-400 mb-1">예상</p>
           <p className={`text-base font-bold ${tier.color}`}>{fmt(result.audience.expected)}명</p>
-          <p className={`text-sm font-semibold ${tier.color}`}>{fmtBillion(result.revenue.expected)}</p>
+          <p className={`text-sm font-semibold ${tier.color}`}>{fmtRevenue(result.revenue.expected, revUnit)}</p>
         </div>
         <div className="rounded-lg bg-white/70 p-3 text-center">
           <p className="text-xs text-gray-400 mb-1">최대</p>
           <p className="text-sm font-semibold text-gray-600">{fmt(result.audience.max)}명</p>
-          <p className="text-xs text-gray-400">{fmtBillion(result.revenue.max)}</p>
+          <p className="text-xs text-gray-400">{fmtRevenue(result.revenue.max, revUnit)}</p>
         </div>
       </div>
 

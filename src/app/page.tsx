@@ -558,12 +558,12 @@ export default function Home() {
                       onValueChange={(v) => updateForm("venueTier", v as "0"|"1"|"2")}
                     >
                       <SelectTrigger className="mt-1">
-                        <SelectValue>{["소극장 (~499석)", "중극장 (예술의전당 등)", "대극장 (블루스퀘어·샤롯데 등)"][parseInt(form.venueTier)]}</SelectValue>
+                        <SelectValue>{["소극장 (~499석)", "중극장 (500~1,500석)", "대극장 (1,500석+)"][parseInt(form.venueTier)]}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="0">소극장 (~499석)</SelectItem>
-                        <SelectItem value="1">중극장 (예술의전당 등)</SelectItem>
-                        <SelectItem value="2">대극장 (블루스퀘어·샤롯데 등)</SelectItem>
+                        <SelectItem value="1">중극장 (500~1,500석)</SelectItem>
+                        <SelectItem value="2">대극장 (1,500석+)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
