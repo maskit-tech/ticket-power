@@ -651,7 +651,10 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 {result ? (
-                  <PredictionResult result={result} />
+                  <PredictionResult
+                    result={result}
+                    stage={docAnalyzed ? "planning" : urlAnalyzed ? "on_sale" : undefined}
+                  />
                 ) : (
                   <div className="flex h-40 flex-col items-center justify-center gap-2 text-gray-400">
                     <p className="text-sm font-medium">공연장을 선택해야 예측이 시작됩니다</p>
