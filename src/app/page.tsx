@@ -20,7 +20,7 @@ import { PredictionResult as Result } from "@/lib/model";
 import { Theater } from "@/lib/theaters";
 import { aggregateFandomScore } from "@/lib/youtube";
 import { Genre, GENRE_OPTIONS, GENRE_CONFIG } from "@/lib/genres";
-import { BarChart3, RefreshCw, Link2, Loader2, CheckCircle2 } from "lucide-react";
+import { BarChart3, RefreshCw, Link2, Loader2, CheckCircle2, FileText, Upload } from "lucide-react";
 
 interface ShowForm {
   title: string;
@@ -68,6 +68,10 @@ export default function Home() {
   const [urlLoading, setUrlLoading] = useState(false);
   const [urlAnalyzed, setUrlAnalyzed] = useState(false);
   const [detectedCastNames, setDetectedCastNames] = useState<string[]>([]);
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docLoading, setDocLoading] = useState(false);
+  const [docAnalyzed, setDocAnalyzed] = useState(false);
+  const [docSummary, setDocSummary] = useState("");
 
   const [form, setForm] = useState<ShowForm>(DEFAULT_FORM);
   const [cast, setCast] = useState<CastMember[]>([]);
@@ -232,6 +236,49 @@ export default function Home() {
     }
   }
 
+  async function analyzeDocument() {
+    if (!docFile) return;
+    setDocLoading(true);
+    setDocAnalyzed(false);
+    setDocSummary("");
+    try {
+      const fd = new FormData();
+      fd.append("file", docFile);
+      const res = await fetch("/api/analyze-document", { method: "POST", body: fd });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "분석 실패");
+      }
+      const data = await res.json();
+
+      setForm((prev) => ({
+        ...prev,
+        title: data.title || prev.title,
+        genre: (data.genre as Genre) || prev.genre,
+        seatcnt: data.seatcnt ? String(data.seatcnt) : prev.seatcnt,
+        periodDays: data.periodDays ? String(data.periodDays) : prev.periodDays,
+        weeklyShows: data.weeklyShows ? String(data.weeklyShows) : prev.weeklyShows,
+        priceAvg: data.priceMin && data.priceMax
+          ? String(Math.round((data.priceMin + data.priceMax) / 2))
+          : prev.priceAvg,
+        priceMax: data.priceMax ? String(data.priceMax) : prev.priceMax,
+        isImported: data.isImported ?? prev.isImported,
+        isTour: data.isTour ?? prev.isTour,
+        companyTier: data.company
+          ? (["EMK","오디컴퍼니","신시컴퍼니","CJ ENM","쇼노트"].some((t: string) => data.company.includes(t)) ? "2" : "1")
+          : prev.companyTier,
+      }));
+
+      if (data.castNames?.length) setDetectedCastNames(data.castNames.slice(0, 8));
+      if (data.summary) setDocSummary(data.summary);
+      setDocAnalyzed(true);
+    } catch (e) {
+      alert(`기획서 분석 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setDocLoading(false);
+    }
+  }
+
   const TIER_COLOR: Record<string, string> = {
     HIGH: "bg-red-100 text-red-700",
     MID: "bg-yellow-100 text-yellow-700",
@@ -277,6 +324,63 @@ export default function Home() {
             기획 중인 공연 예측
           </button>
         </div>
+
+        {/* 기획서 업로드 섹션 (기획 모드) */}
+        {mode === "plan" && (
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <Label className="text-xs text-gray-500 flex items-center gap-1">
+                <FileText className="h-3.5 w-3.5" />
+                기획서 업로드 (선택) — PDF · DOCX · TXT
+              </Label>
+              <div className="flex gap-2 mt-2">
+                <label className="flex-1 flex items-center gap-2 px-3 py-2 border rounded-md cursor-pointer hover:bg-gray-50 transition-colors">
+                  <Upload className="h-4 w-4 text-gray-400 shrink-0" />
+                  <span className="text-sm text-gray-500 truncate">
+                    {docFile ? docFile.name : "파일 선택..."}
+                  </span>
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.txt"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      setDocFile(f);
+                      setDocAnalyzed(false);
+                      setDocSummary("");
+                    }}
+                  />
+                </label>
+                <Button
+                  onClick={analyzeDocument}
+                  disabled={docLoading || !docFile}
+                  className="shrink-0"
+                >
+                  {docLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "분석"}
+                </Button>
+              </div>
+              {docAnalyzed && (
+                <p className="mt-2 text-xs text-green-600 flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  기획서 분석 완료 — 폼이 자동 채워졌습니다. 확인 후 수정하세요.
+                </p>
+              )}
+              {docSummary && (
+                <p className="mt-2 text-xs text-gray-500 bg-gray-50 rounded px-3 py-2">{docSummary}</p>
+              )}
+              {detectedCastNames.length > 0 && (
+                <div className="mt-3 pt-3 border-t">
+                  <p className="text-xs text-gray-500 mb-1">발견된 출연진 — 아래 캐스트 섹션에서 검색해 추가하세요</p>
+                  <div className="flex flex-wrap gap-1">
+                    {detectedCastNames.map((name) => (
+                      <span key={name} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{name}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* URL 분석 섹션 (오픈 모드) */}
         {mode === "open" && (
@@ -498,7 +602,7 @@ export default function Home() {
                 <CardTitle className="text-sm font-semibold text-gray-700">
                   캐스트
                   <span className="ml-2 text-xs font-normal text-gray-400">
-                    YouTube · 인스타 · X · 스레드 팔로워 합산 팬덤 반영
+                    YouTube 채널 검색 후 IG·X 버튼으로 소셜 팔로워 추가
                   </span>
                 </CardTitle>
               </CardHeader>
