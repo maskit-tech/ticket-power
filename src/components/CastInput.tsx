@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, X, PlayCircle, User, Search, AtSign } from "lucide-react";
+import { Loader2, Plus, X, PlayCircle, User, Search, AtSign, BookOpen } from "lucide-react";
 import { getActorGrade } from "@/lib/theaters";
 import { combinedFandomScore } from "@/lib/youtube";
 import { GENRE_CONFIG } from "@/lib/genres";
@@ -32,6 +32,12 @@ export interface CastMember {
   twitterFollowers?: number | null;
   threadsFollowers?: number | null;
   socialLoading?: boolean;
+  // 예술편람
+  artpediaSlug?: string;
+  artpediaUrl?: string;
+  artpediaRecentEvents?: number;
+  artpediaUpcomingEvents?: number;
+  artpediaTotalEvents?: number;
 }
 
 interface SearchCandidate {
@@ -54,6 +60,18 @@ interface BuzzSummary {
   trendAvg: number;
 }
 
+interface ArtpediaPerson {
+  slug: string;
+  name: string;
+  nameKo: string;
+  imageUrl: string | null;
+  type: string | null;
+  recentEvents: number;
+  upcomingEvents: number;
+  totalEvents: number;
+  artpediaUrl: string;
+}
+
 interface Props {
   cast: CastMember[];
   onChange: (cast: CastMember[]) => void;
@@ -73,6 +91,12 @@ export default function CastInput({ cast, onChange, genre = "musical" }: Props) 
   const [cardSearch, setCardSearch] = useState<Record<string, {
     loading: boolean;
     candidates: SearchCandidate[];
+    show: boolean;
+  }>>({});
+  // 카드별 예술편람 검색 상태
+  const [artpediaSearch, setArtpediaSearch] = useState<Record<string, {
+    loading: boolean;
+    candidates: ArtpediaPerson[];
     show: boolean;
   }>>({});
 
@@ -109,6 +133,48 @@ export default function CastInput({ cast, onChange, genre = "musical" }: Props) 
       gradeColor: c.gradeColor,
     } : m));
     setCardSearch((prev) => ({ ...prev, [memberId]: { ...prev[memberId], show: false } }));
+  }
+
+  async function searchArtpediaForCard(memberId: string, name: string) {
+    setArtpediaSearch((prev) => ({ ...prev, [memberId]: { loading: true, candidates: [], show: true } }));
+    try {
+      const res = await fetch("/api/artpedia-person", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json() as { people: ArtpediaPerson[] };
+      setArtpediaSearch((prev) => ({
+        ...prev,
+        [memberId]: { loading: false, candidates: data.people ?? [], show: true },
+      }));
+    } catch {
+      setArtpediaSearch((prev) => ({ ...prev, [memberId]: { loading: false, candidates: [], show: false } }));
+    }
+  }
+
+  function linkArtpediaToCard(memberId: string, p: ArtpediaPerson) {
+    onChange(cast.map((m) => {
+      if (m.id !== memberId) return m;
+      const newFandomScore = combinedFandomScore({
+        youtubeSubscribers: m.subscriberCount,
+        instagramFollowers: m.instagramFollowers,
+        twitterFollowers: m.twitterFollowers,
+        threadsFollowers: m.threadsFollowers,
+        genre,
+        artpediaRecentEvents: p.recentEvents,
+      });
+      return {
+        ...m,
+        artpediaSlug: p.slug,
+        artpediaUrl: p.artpediaUrl,
+        artpediaRecentEvents: p.recentEvents,
+        artpediaUpcomingEvents: p.upcomingEvents,
+        artpediaTotalEvents: p.totalEvents,
+        fandomScore: newFandomScore,
+      };
+    }));
+    setArtpediaSearch((prev) => ({ ...prev, [memberId]: { ...prev[memberId], show: false } }));
   }
 
   function toggleSocialPlatform(id: string, platform: 'ig' | 'x' | 'th') {
@@ -406,6 +472,37 @@ export default function CastInput({ cast, onChange, genre = "musical" }: Props) 
                   </button>
                 )}
 
+                {/* 예술편람 */}
+                {m.artpediaSlug ? (
+                  <a
+                    href={m.artpediaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-xs px-1.5 py-0.5 rounded border border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors flex items-center gap-0.5"
+                    title={`예술편람에서 보기 — 최근 6개월 ${m.artpediaRecentEvents}회`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <BookOpen className="h-2.5 w-2.5" />
+                    <span>{m.artpediaRecentEvents ?? 0}회</span>
+                  </a>
+                ) : (
+                  <button
+                    onClick={() => searchArtpediaForCard(m.id, m.name)}
+                    disabled={artpediaSearch[m.id]?.loading}
+                    className={`shrink-0 text-xs px-1.5 py-0.5 rounded border border-dashed transition-colors flex items-center gap-0.5 ${
+                      artpediaSearch[m.id]?.show
+                        ? "border-emerald-300 text-emerald-600"
+                        : "border-gray-300 text-gray-400 hover:border-emerald-300 hover:text-emerald-500"
+                    }`}
+                    title="예술편람 연결"
+                  >
+                    {artpediaSearch[m.id]?.loading
+                      ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                      : <BookOpen className="h-2.5 w-2.5" />}
+                    <span>편람</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => removeMember(m.id)}
                   className="text-gray-300 hover:text-gray-500 shrink-0"
@@ -516,6 +613,68 @@ export default function CastInput({ cast, onChange, genre = "musical" }: Props) 
                       <button
                         className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50 flex items-center justify-between"
                         onClick={() => setCardSearch((prev) => ({ ...prev, [m.id]: { ...prev[m.id], show: false } }))}
+                      >
+                        <span>닫기</span>
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 예술편람 검색 드롭다운 */}
+              {artpediaSearch[m.id]?.show && (
+                <div className="border-t">
+                  {artpediaSearch[m.id].loading ? (
+                    <div className="flex items-center gap-2 p-3 text-xs text-gray-400">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      예술편람 검색 중...
+                    </div>
+                  ) : artpediaSearch[m.id].candidates.length === 0 ? (
+                    <div className="p-3 text-xs text-gray-400 flex items-center justify-between">
+                      <span>예술편람에서 연주자를 찾지 못했습니다</span>
+                      <button
+                        className="text-gray-300 hover:text-gray-500"
+                        onClick={() => setArtpediaSearch((prev) => ({ ...prev, [m.id]: { ...prev[m.id], show: false } }))}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      {artpediaSearch[m.id].candidates.map((p) => (
+                        <button
+                          key={p.slug}
+                          className="w-full text-left px-3 py-2 hover:bg-emerald-50 border-b last:border-0 flex items-center gap-2"
+                          onClick={() => linkArtpediaToCard(m.id, p)}
+                        >
+                          {p.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={p.imageUrl} alt={p.name} className="h-7 w-7 rounded-full object-cover shrink-0" />
+                          ) : (
+                            <div className="h-7 w-7 rounded-full bg-emerald-100 shrink-0 flex items-center justify-center">
+                              <BookOpen className="h-3.5 w-3.5 text-emerald-500" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-medium truncate">{p.nameKo || p.name}</span>
+                              {p.upcomingEvents > 0 && (
+                                <span className="text-xs px-1 py-0 rounded bg-emerald-100 text-emerald-600 shrink-0">
+                                  예정 {p.upcomingEvents}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-gray-400">
+                              최근 6개월 {p.recentEvents}회 · 전체 {p.totalEvents}회
+                            </span>
+                          </div>
+                          <BookOpen className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                        </button>
+                      ))}
+                      <button
+                        className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50 flex items-center justify-between"
+                        onClick={() => setArtpediaSearch((prev) => ({ ...prev, [m.id]: { ...prev[m.id], show: false } }))}
                       >
                         <span>닫기</span>
                         <X className="h-3.5 w-3.5" />

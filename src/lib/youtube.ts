@@ -117,13 +117,15 @@ export function combinedFandomScore(params: {
   twitterFollowers?: number | null;
   threadsFollowers?: number | null;
   genre?: string;
+  /** Artpedia 최근 6개월 공연 수 — 클래식/오페라에서 소셜 없을 때 주요 신호 */
+  artpediaRecentEvents?: number | null;
 }): number {
   const w = PLATFORM_WEIGHTS[params.genre ?? "musical"] ?? PLATFORM_WEIGHTS.musical;
 
   const ytScore = subscriberToFandomScore(params.youtubeSubscribers);
   const igScore = params.instagramFollowers != null
     ? subscriberToFandomScore(params.instagramFollowers)
-    : ytScore;  // 데이터 없으면 YouTube 기준으로 대체
+    : ytScore;
   const xScore = params.twitterFollowers != null
     ? subscriberToFandomScore(params.twitterFollowers)
     : ytScore;
@@ -131,13 +133,32 @@ export function combinedFandomScore(params: {
     ? subscriberToFandomScore(params.threadsFollowers)
     : ytScore;
 
-  // 소셜 데이터가 하나도 없으면 YouTube만 사용
-  const hasAny =
+  const hasSocial =
     params.instagramFollowers != null ||
     params.twitterFollowers != null ||
     params.threadsFollowers != null;
 
-  if (!hasAny) return ytScore;
+  // ── 소셜 데이터가 전혀 없고 artpedia 활동이 있는 경우 (클래식/오페라 연주자 전형)
+  const noDigitalPresence = params.youtubeSubscribers <= 0 && !hasSocial;
+  if (noDigitalPresence && params.artpediaRecentEvents != null && params.artpediaRecentEvents > 0) {
+    // 최근 6개월 공연 수 → 0.28~0.55 범위 추정 점수
+    const actBase = Math.min(0.55, 0.25 + params.artpediaRecentEvents * 0.04);
+    return actBase;
+  }
 
-  return w.yt * ytScore + w.ig * igScore + w.x * xScore + w.th * thScore;
+  const baseScore = hasSocial
+    ? w.yt * ytScore + w.ig * igScore + w.x * xScore + w.th * thScore
+    : ytScore;
+
+  // ── Artpedia 활동성 보정 (±10%) — 소셜 데이터가 있는 경우에도 적용
+  if (params.artpediaRecentEvents != null) {
+    const boost =
+      params.artpediaRecentEvents >= 6 ? 1.10 :
+      params.artpediaRecentEvents >= 3 ? 1.05 :
+      params.artpediaRecentEvents >= 1 ? 1.02 :
+      0.95; // 활동 없음 → 약간 보수적
+    return Math.min(1, baseScore * boost);
+  }
+
+  return baseScore;
 }
