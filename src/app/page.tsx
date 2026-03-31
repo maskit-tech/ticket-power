@@ -440,7 +440,7 @@ export default function Home() {
                     onValueChange={(v) => updateForm("genre", v as Genre)}
                   >
                     <SelectTrigger className="mt-1">
-                      <SelectValue />
+                      <SelectValue>{GENRE_OPTIONS.find((g) => g.value === form.genre)?.label ?? form.genre}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {GENRE_OPTIONS.map((g) => (
@@ -529,7 +529,7 @@ export default function Home() {
                       onValueChange={(v) => updateForm("companyTier", v as "0"|"1"|"2")}
                     >
                       <SelectTrigger className="mt-1">
-                        <SelectValue />
+                        <SelectValue>{["소형 (신생·소규모)", "중형 (중견 제작사)", "대형 (EMK·오디·CJ 등)"][parseInt(form.companyTier)]}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="0">소형 (신생·소규모)</SelectItem>
@@ -545,7 +545,7 @@ export default function Home() {
                       onValueChange={(v) => updateForm("venueTier", v as "0"|"1"|"2")}
                     >
                       <SelectTrigger className="mt-1">
-                        <SelectValue />
+                        <SelectValue>{["소극장 (~499석)", "중극장 (예술의전당 등)", "대극장 (블루스퀘어·샤롯데 등)"][parseInt(form.venueTier)]}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="0">소극장 (~499석)</SelectItem>
@@ -563,7 +563,7 @@ export default function Home() {
                     onValueChange={(v) => updateForm("repertoireGrade", v as "0"|"1"|"2"|"3")}
                   >
                     <SelectTrigger className="mt-1">
-                      <SelectValue />
+                      <SelectValue>{["신작/실험작", "알려진 작품", "대중적 명작", "세계적 명작"][parseInt(form.repertoireGrade)]}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="0">신작/실험작 — 검증되지 않은 작품</SelectItem>
