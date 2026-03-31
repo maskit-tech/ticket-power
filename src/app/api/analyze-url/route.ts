@@ -160,7 +160,7 @@ function parseKumhoArthall(html: string) {
     title,
     venue: "금호아트홀 연세",
     genre,
-    seatcnt: 410, // 금호아트홀 연세 좌석수
+    seatcnt: 396, // 금호아트홀 연세 좌석수
     periodDays: dateFrom ? 1 : 0,
     weeklyShows: 1,
     priceMin,

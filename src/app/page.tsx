@@ -20,6 +20,7 @@ import { PredictionResult as Result } from "@/lib/model";
 import { Theater } from "@/lib/theaters";
 import { aggregateFandomScore } from "@/lib/youtube";
 import { Genre, GENRE_OPTIONS, GENRE_CONFIG } from "@/lib/genres";
+import { searchTheaters } from "@/lib/theaters";
 import { BarChart3, RefreshCw, Link2, Loader2, CheckCircle2, FileText, Upload } from "lucide-react";
 
 interface ShowForm {
@@ -205,12 +206,24 @@ export default function Home() {
           : prev.companyTier,
       }));
 
-      // 출연진 이름 목록 (YouTube 검색 힌트)
-      if (data.castNames?.length) setDetectedCastNames(data.castNames.slice(0, 8));
+      // 공연장 자동 선택
+      if (data.venue && !theater) {
+        const matches = searchTheaters(data.venue);
+        if (matches.length > 0) setTheater(matches[0]);
+      }
 
-      // 공연장 힌트 저장 (venue 이름이 있으면 검색 힌트로)
-      if (data.venue) {
-        // TheaterSelect에 힌트 전달용 — 직접 매칭은 어려우니 title에 venue 보여줌
+      // 출연진 자동 추가 (YouTube 없이)
+      if (data.castNames?.length) {
+        const names: string[] = data.castNames.slice(0, 8);
+        setDetectedCastNames(names);
+        setCast(names.map((name: string) => ({
+          id: crypto.randomUUID(),
+          name,
+          youtubeUrl: "",
+          subscriberCount: 0,
+          fandomScore: 0.3,
+          loading: false,
+        })));
       }
 
       setUrlAnalyzed(true);
@@ -529,12 +542,12 @@ export default function Home() {
                       onValueChange={(v) => updateForm("companyTier", v as "0"|"1"|"2")}
                     >
                       <SelectTrigger className="mt-1">
-                        <SelectValue>{["소형 (신생·소규모)", "중형 (중견 제작사)", "대형 (EMK·오디·CJ 등)"][parseInt(form.companyTier)]}</SelectValue>
+                        <SelectValue>{GENRE_CONFIG[form.genre].companyTierLabels[parseInt(form.companyTier)]}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="0">소형 (신생·소규모)</SelectItem>
-                        <SelectItem value="1">중형 (중견 제작사)</SelectItem>
-                        <SelectItem value="2">대형 (EMK·오디·CJ 등)</SelectItem>
+                        {GENRE_CONFIG[form.genre].companyTierLabels.map((label, i) => (
+                          <SelectItem key={i} value={String(i)}>{label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -563,13 +576,12 @@ export default function Home() {
                     onValueChange={(v) => updateForm("repertoireGrade", v as "0"|"1"|"2"|"3")}
                   >
                     <SelectTrigger className="mt-1">
-                      <SelectValue>{["신작/실험작", "알려진 작품", "대중적 명작", "세계적 명작"][parseInt(form.repertoireGrade)]}</SelectValue>
+                      <SelectValue>{GENRE_CONFIG[form.genre].repertoireLabels[parseInt(form.repertoireGrade)]}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="0">신작/실험작 — 검증되지 않은 작품</SelectItem>
-                      <SelectItem value="1">알려진 작품 — 라이선스·소규모 명작</SelectItem>
-                      <SelectItem value="2">대중적 명작 — 빨래·광화문연가·베토벤</SelectItem>
-                      <SelectItem value="3">세계적 명작 — 레미제라블·베토벤 9번</SelectItem>
+                      {GENRE_CONFIG[form.genre].repertoireLabels.map((label, i) => (
+                        <SelectItem key={i} value={String(i)}>{label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

@@ -147,7 +147,7 @@ export const THEATERS: Theater[] = [
   {
     id: "kumho-art-hall",
     name: "금호아트홀 연세",
-    seatcnt: 380,
+    seatcnt: 396,
     venueTier: 0,
     district: "신촌",
     highRate: 0.28,
