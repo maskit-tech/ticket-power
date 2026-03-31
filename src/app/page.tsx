@@ -351,7 +351,7 @@ export default function Home() {
                 <div>
                   <Label className="text-xs text-gray-500">공연명 (선택)</Label>
                   <Input
-                    placeholder="예: 베토벤 피아노 협주곡 5번"
+                    placeholder={GENRE_CONFIG[form.genre].exampleTitle}
                     value={form.title}
                     onChange={(e) => updateForm("title", e.target.value)}
                     className="mt-1"

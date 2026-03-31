@@ -15,6 +15,8 @@ export interface GenreConfig {
   fandomWeights: { youtube: number; news: number; trend: number };
   defaultCastFandom: number;
   hint: string;
+  exampleTitle: string;   // 공연명 input placeholder
+  exampleCast: string;    // 캐스트 검색 placeholder
 }
 
 export const GENRE_CONFIG: Record<Genre, GenreConfig> = {
@@ -25,6 +27,8 @@ export const GENRE_CONFIG: Record<Genre, GenreConfig> = {
     fandomWeights: { youtube: 0.60, news: 0.20, trend: 0.20 },
     defaultCastFandom: 0.30,
     hint: "캐스트 팬덤이 흥행의 핵심 변수입니다",
+    exampleTitle: "예: 레미제라블, 데스노트, 엑스칼리버",
+    exampleCast: "홍광호, 조승우, 김준수...",
   },
   classical: {
     label: "클래식/콘서트",
@@ -33,6 +37,8 @@ export const GENRE_CONFIG: Record<Genre, GenreConfig> = {
     fandomWeights: { youtube: 0.20, news: 0.30, trend: 0.50 },
     defaultCastFandom: 0.35,
     hint: "네이버 검색 트렌드와 뉴스 화제성이 중심 지표입니다",
+    exampleTitle: "예: 베토벤 교향곡 9번, 조성진 리사이틀",
+    exampleCast: "조성진, 임윤찬, 정명훈...",
   },
   pop_concert: {
     label: "대중음악 콘서트",
@@ -41,6 +47,8 @@ export const GENRE_CONFIG: Record<Genre, GenreConfig> = {
     fandomWeights: { youtube: 0.70, news: 0.15, trend: 0.15 },
     defaultCastFandom: 0.25,
     hint: "아티스트 YouTube 구독자 수가 가장 직접적인 지표입니다",
+    exampleTitle: "예: 아이유 HEREH 콘서트, 세븐틴 투어",
+    exampleCast: "아이유, BTS, 세븐틴...",
   },
   play: {
     label: "연극",
@@ -49,6 +57,8 @@ export const GENRE_CONFIG: Record<Genre, GenreConfig> = {
     fandomWeights: { youtube: 0.15, news: 0.45, trend: 0.40 },
     defaultCastFandom: 0.35,
     hint: "작품 평판과 미디어 노출이 핵심입니다. 팬덤 영향 상대적으로 낮음",
+    exampleTitle: "예: 햄릿, 고도를 기다리며, 1인용 식탁",
+    exampleCast: "황정민, 박해일, 손현주...",
   },
   opera: {
     label: "오페라",
@@ -57,6 +67,8 @@ export const GENRE_CONFIG: Record<Genre, GenreConfig> = {
     fandomWeights: { youtube: 0.10, news: 0.30, trend: 0.60 },
     defaultCastFandom: 0.35,
     hint: "니치 장르 특성상 점유율 기대치가 보수적으로 설정됩니다",
+    exampleTitle: "예: 라 트라비아타, 토스카, 마술피리",
+    exampleCast: "연광철, 홍혜란, 김성현...",
   },
 };
 

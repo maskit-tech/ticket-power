@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, X, PlayCircle, User, Search, AtSign } from "lucide-react";
 import { getActorGrade } from "@/lib/theaters";
 import { combinedFandomScore } from "@/lib/youtube";
+import { GENRE_CONFIG } from "@/lib/genres";
 
 export interface CastMember {
   id: string;
@@ -388,7 +389,7 @@ export default function CastInput({ cast, onChange, genre = "musical" }: Props) 
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="아티스트 이름으로 검색 (조성진, 임윤찬...)"
+              placeholder={`아티스트 이름으로 검색 (${GENRE_CONFIG[genre as keyof typeof GENRE_CONFIG]?.exampleCast ?? "홍광호, 조승우..."})`}
               value={nameInput}
               onChange={(e) => {
                 setNameInput(e.target.value);
